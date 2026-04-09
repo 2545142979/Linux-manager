@@ -1,0 +1,37 @@
+# Local tool metadata
+.codex
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# C / CMake build artifacts
+build/
+*/build/
+**/build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
+*.o
+*.o.d
+*.obj
+*.a
+*.so
+*.out
+*.exe
+a.out
+iot_monitor_server
