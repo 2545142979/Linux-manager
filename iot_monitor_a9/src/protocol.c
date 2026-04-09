@@ -120,11 +120,11 @@ int protocol_opcode_from_text(const char *text, uint8_t *opcode)
         *opcode = CONTROL_LED_OFF;
         return 0;
     }
-    if (strcmp(text, "buz_on") == 0 || strcmp(text, "beep_on") == 0) {
+    if (strcmp(text, "beep_on") == 0) {
         *opcode = CONTROL_BUZ_ON;
         return 0;
     }
-    if (strcmp(text, "buz_off") == 0 || strcmp(text, "beep_off") == 0) {
+    if (strcmp(text, "beep_off") == 0) {
         *opcode = CONTROL_BUZ_OFF;
         return 0;
     }
