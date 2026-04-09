@@ -24,6 +24,11 @@ uint16_t protocol_read_le16(const uint8_t *buf)
     return (uint16_t)buf[0] | ((uint16_t)buf[1] << 8);
 }
 
+static uint16_t protocol_read_be16(const uint8_t *buf)
+{
+    return ((uint16_t)buf[0] << 8) | (uint16_t)buf[1];
+}
+
 uint32_t protocol_read_le32(const uint8_t *buf)
 {
     return (uint32_t)buf[0]
@@ -72,8 +77,9 @@ int protocol_parse_env_packet(const uint8_t *buf, size_t len, struct env_data *o
     }
 
     memset(out, 0, sizeof(*out));
-    out->temperature = protocol_read_le16(buf + 4);
-    out->humidity = protocol_read_le16(buf + 6);
+    // M0 实际上报的温湿度字段高字节在前，和其余小端字段不同。
+    out->temperature = protocol_read_be16(buf + 4);
+    out->humidity = protocol_read_be16(buf + 6);
     out->acceleration = protocol_read_le32(buf + 8);
     out->adc = protocol_read_le64(buf + 12);
     out->light = protocol_read_le32(buf + 20);

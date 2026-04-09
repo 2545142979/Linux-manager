@@ -18,22 +18,22 @@
 ./scripts/build_linux.sh
 ```
 
-如果要使用 `arm-linux-gnueabi-gcc` 交叉编译:
+如果要使用 `arm-linux-gnueabihf-gcc` 交叉编译:
 
 ```bash
-./scripts/build_arm_linux_gcc.sh
+./scripts/build_arm_linux_gnueabihf.sh
 ```
 
 如果交叉编译器不在 `PATH` 中，可以先指定:
 
 ```bash
-export ARM_LINUX_GCC_COMPILER=/path/to/arm-linux-gnueabi-gcc
-./scripts/build_arm_linux_gcc.sh
+export ARM_LINUX_GNUEABIHF_GCC_COMPILER=/path/to/arm-linux-gnueabihf-gcc
+./scripts/build_arm_linux_gnueabihf.sh
 ```
 
 ## 运行
 
-本地构建产物默认位于 `build/linux/iot_monitor_server`，ARM 构建产物默认位于 `build/arm-linux-gcc/iot_monitor_server`。
+本地构建产物默认位于 `build/linux/iot_monitor_server`，ARM `gnueabihf` 构建产物默认位于 `build/arm-linux-gnueabihf/iot_monitor_server`。
 
 ```bash
 ./build/linux/iot_monitor_server [tcp_port] [serial_device] [camera_device]
