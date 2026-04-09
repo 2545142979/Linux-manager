@@ -5,7 +5,7 @@
 // 解析协议数据包的工具函数
 // 协议数据包格式：
 // 0: tag (1 byte) - PROTOCOL_TAG_CMD 或 PROTOCOL_TAG_ENV
-// 1: device_id (1 byte) - PROTOCOL_DEVICE_ID
+// 1: device_id (1 byte)
 // 2-3: length (2 bytes, little-endian) - 数据包总长度（包含头部）
 // 4-...: payload (根据 length 定义)
 
@@ -62,7 +62,6 @@ int protocol_is_command_packet(const uint8_t *buf, size_t len)
     }
 
     return buf[0] == PROTOCOL_TAG_CMD
-        && buf[1] == PROTOCOL_DEVICE_ID
         && protocol_read_le16(buf + 2) == PROTOCOL_PACKET_SIZE;
 }
 
@@ -77,6 +76,7 @@ int protocol_parse_env_packet(const uint8_t *buf, size_t len, struct env_data *o
     }
 
     memset(out, 0, sizeof(*out));
+    out->device_id = buf[1];
     // M0 实际上报的温湿度字段高字节在前，和其余小端字段不同。
     out->temperature = protocol_read_be16(buf + 4);
     out->humidity = protocol_read_be16(buf + 6);
@@ -91,7 +91,7 @@ int protocol_parse_env_packet(const uint8_t *buf, size_t len, struct env_data *o
     return 0;
 }
 
-int protocol_build_control_packet(uint8_t opcode, uint8_t *out, size_t out_len)
+int protocol_build_control_packet(uint8_t device_id, uint8_t opcode, uint8_t *out, size_t out_len)
 {
     if (out == NULL || out_len < PROTOCOL_PACKET_SIZE) {
         return -1;
@@ -99,7 +99,7 @@ int protocol_build_control_packet(uint8_t opcode, uint8_t *out, size_t out_len)
 
     memset(out, 0, PROTOCOL_PACKET_SIZE);
     out[0] = PROTOCOL_TAG_CMD;
-    out[1] = PROTOCOL_DEVICE_ID;
+    out[1] = device_id;
     protocol_write_le16(out + 2, PROTOCOL_PACKET_SIZE);
     out[4] = opcode;
 

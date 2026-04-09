@@ -11,6 +11,8 @@
 
 #include "protocol.h"
 
+#define TCP_TEXT_BUFFER_SIZE 512U
+
 static int write_all(int fd, const void *buf, size_t len)
 {
     size_t total = 0;
@@ -66,6 +68,9 @@ static void handle_env_request(int connfd, struct shared_state *shared)
     uint8_t empty[PROTOCOL_PACKET_SIZE] = {0};
 
     if (shared_state_copy_env(shared, &env) != 0) {
+        empty[0] = PROTOCOL_TAG_ENV;
+        empty[1] = PROTOCOL_DEFAULT_DEVICE_ID;
+        protocol_write_le16(empty + 2, PROTOCOL_PACKET_SIZE);
         write_all(connfd, empty, sizeof(empty));
         return;
     }
@@ -83,6 +88,66 @@ static void handle_text_command(int connfd, struct serial_context *serial, char 
     }
 
     write_all(connfd, "unsupported\n", 12);
+}
+
+static int process_text_command_line(int connfd,
+                                     struct shared_state *shared,
+                                     struct serial_context *serial,
+                                     char *command)
+{
+    trim_text_command(command);
+    if (command[0] == '\0') {
+        return 0;
+    }
+
+    if (strcmp(command, "pic") == 0) {
+        handle_picture_request(connfd, shared);
+        return 0;
+    }
+
+    if (strcmp(command, "env") == 0) {
+        handle_env_request(connfd, shared);
+        return 0;
+    }
+
+    handle_text_command(connfd, serial, command);
+    return 0;
+}
+
+static int process_client_buffer(struct tcp_client_args *client, uint8_t *buffer, size_t *buffer_len)
+{
+    for (;;) {
+        size_t newline_index;
+        char *newline;
+
+        if (*buffer_len >= PROTOCOL_PACKET_SIZE
+            && protocol_is_command_packet(buffer, PROTOCOL_PACKET_SIZE)) {
+            if (serial_send_bytes(client->serial, buffer, PROTOCOL_PACKET_SIZE) != 0) {
+                write_all(client->connfd, "serial_error\n", 13);
+            } else {
+                write_all(client->connfd, "ok\n", 3);
+            }
+
+            memmove(buffer, buffer + PROTOCOL_PACKET_SIZE, *buffer_len - PROTOCOL_PACKET_SIZE);
+            *buffer_len -= PROTOCOL_PACKET_SIZE;
+            continue;
+        }
+
+        newline = memchr(buffer, '\n', *buffer_len);
+        if (newline == NULL) {
+            return 0;
+        }
+
+        newline_index = (size_t)(newline - (char *)buffer);
+        buffer[newline_index] = '\0';
+        process_text_command_line(client->connfd,
+                                  client->shared,
+                                  client->serial,
+                                  (char *)buffer);
+
+        memmove(buffer, buffer + newline_index + 1, *buffer_len - newline_index - 1);
+        *buffer_len -= newline_index + 1;
+    }
 }
 
 int tcp_server_listen(uint16_t port)
@@ -127,6 +192,8 @@ void *tcp_client_thread(void *arg)
 {
     struct tcp_client_args *client = arg;
     uint8_t buf[256];
+    uint8_t command_buffer[TCP_TEXT_BUFFER_SIZE];
+    size_t command_len = 0;
 
     if (client == NULL) {
         return NULL;
@@ -145,27 +212,45 @@ void *tcp_client_thread(void *arg)
             break;
         }
 
-        if ((size_t)ret >= 3 && memcmp(buf, "pic", 3) == 0) {
+        if (command_len + (size_t)ret > sizeof(command_buffer)) {
+            fprintf(stderr, "client buffer overflow, dropping buffered data\n");
+            command_len = 0;
+        }
+
+        if ((size_t)ret > sizeof(command_buffer) - command_len) {
+            fprintf(stderr, "client message too large, dropping chunk\n");
+            continue;
+        }
+
+        memcpy(command_buffer + command_len, buf, (size_t)ret);
+        command_len += (size_t)ret;
+
+        if (process_client_buffer(client, command_buffer, &command_len) != 0) {
+            break;
+        }
+
+        if (command_len == 3 && memcmp(command_buffer, "pic", 3) == 0) {
             handle_picture_request(client->connfd, client->shared);
+            command_len = 0;
             continue;
         }
 
-        if ((size_t)ret >= 3 && memcmp(buf, "env", 3) == 0) {
+        if (command_len == 3 && memcmp(command_buffer, "env", 3) == 0) {
             handle_env_request(client->connfd, client->shared);
+            command_len = 0;
             continue;
         }
 
-        if (protocol_is_command_packet(buf, (size_t)ret)) {
-            if (serial_send_bytes(client->serial, buf, PROTOCOL_PACKET_SIZE) != 0) {
-                write_all(client->connfd, "serial_error\n", 13);
-            } else {
-                write_all(client->connfd, "ok\n", 3);
-            }
-            continue;
+        if ((command_len == 6 && memcmp(command_buffer, "led_on", 6) == 0)
+            || (command_len == 7 && memcmp(command_buffer, "led_off", 7) == 0)
+            || (command_len == 7 && memcmp(command_buffer, "beep_on", 7) == 0)
+            || (command_len == 8 && memcmp(command_buffer, "beep_off", 8) == 0)
+            || (command_len == 6 && memcmp(command_buffer, "fan_on", 6) == 0)
+            || (command_len == 7 && memcmp(command_buffer, "fan_off", 7) == 0)) {
+            command_buffer[command_len] = '\0';
+            handle_text_command(client->connfd, client->serial, (char *)command_buffer);
+            command_len = 0;
         }
-
-        buf[(size_t)ret < sizeof(buf) ? (size_t)ret : sizeof(buf) - 1] = '\0';
-        handle_text_command(client->connfd, client->serial, (char *)buf);
     }
 
     close(client->connfd);

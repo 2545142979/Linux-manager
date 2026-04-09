@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define PROTOCOL_PACKET_SIZE 36U
-#define PROTOCOL_DEVICE_ID 0x08U
+#define PROTOCOL_DEFAULT_DEVICE_ID 0x08U
 
 #define PROTOCOL_TAG_ENV 0xBBU
 #define PROTOCOL_TAG_CMD 0xDDU
@@ -21,6 +21,7 @@ enum control_opcode {
 };
 
 struct env_data {
+    uint8_t device_id;
     uint16_t temperature;
     uint16_t humidity;
     uint32_t acceleration;
@@ -38,7 +39,7 @@ uint64_t protocol_read_le64(const uint8_t *buf);
 void protocol_write_le16(uint8_t *buf, uint16_t value);
 int protocol_is_command_packet(const uint8_t *buf, size_t len);
 int protocol_parse_env_packet(const uint8_t *buf, size_t len, struct env_data *out);
-int protocol_build_control_packet(uint8_t opcode, uint8_t *out, size_t out_len);
+int protocol_build_control_packet(uint8_t device_id, uint8_t opcode, uint8_t *out, size_t out_len);
 int protocol_opcode_from_text(const char *text, uint8_t *opcode);
 
 #endif
