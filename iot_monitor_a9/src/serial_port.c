@@ -183,13 +183,13 @@ int serial_send_command_packet(struct serial_context *ctx, const uint8_t *buf, s
 {
     int ret;
 
-    if (buf == NULL || len < PROTOCOL_PACKET_SIZE) {
+    if (buf == NULL || len != PROTOCOL_PACKET_SIZE) {
         return -1;
     }
 
-    ret = serial_send_bytes(ctx, buf, PROTOCOL_PACKET_SIZE);
+    ret = serial_send_bytes(ctx, buf, len);
     if (ret == 0) {
-        serial_log_tx_packet("binary", buf, PROTOCOL_PACKET_SIZE);
+        serial_log_tx_packet("binary", buf, len);
     } else {
         fprintf(stderr, "serial tx failed [binary]\n");
     }

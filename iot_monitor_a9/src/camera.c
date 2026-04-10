@@ -1,5 +1,4 @@
 #include "camera.h"
-
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/videodev2.h>
