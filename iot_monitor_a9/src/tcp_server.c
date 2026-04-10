@@ -122,7 +122,7 @@ static int process_client_buffer(struct tcp_client_args *client, uint8_t *buffer
 
         if (*buffer_len >= PROTOCOL_PACKET_SIZE
             && protocol_is_command_packet(buffer, PROTOCOL_PACKET_SIZE)) {
-            if (serial_send_bytes(client->serial, buffer, PROTOCOL_PACKET_SIZE) != 0) {
+            if (serial_send_command_packet(client->serial, buffer, PROTOCOL_PACKET_SIZE) != 0) {
                 write_all(client->connfd, "serial_error\n", 13);
             } else {
                 write_all(client->connfd, "ok\n", 3);

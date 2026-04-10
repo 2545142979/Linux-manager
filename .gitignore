@@ -35,3 +35,13 @@ Makefile
 *.exe
 a.out
 iot_monitor_server
+
+# Qt / Generated files
+*.pro.user
+*.qmake.stash
+build-*/
+**/build-*/
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*~

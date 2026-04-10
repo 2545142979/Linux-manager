@@ -155,36 +155,29 @@ int serial_send_bytes(struct serial_context *ctx, const uint8_t *buf, size_t len
     return 0;
 }
 
+int serial_send_command_packet(struct serial_context *ctx, const uint8_t *buf, size_t len)
+{
+    if (buf == NULL || len < PROTOCOL_PACKET_SIZE) {
+        return -1;
+    }
+
+    return serial_send_bytes(ctx, buf, PROTOCOL_PACKET_SIZE);
+}
+
 int serial_send_command_text(struct serial_context *ctx, const char *text)
 {
     uint8_t opcode;
     uint8_t packet[PROTOCOL_PACKET_SIZE];
-    uint8_t device_id;
 
     if (protocol_opcode_from_text(text, &opcode) != 0) {
         return -1;
     }
 
-    pthread_mutex_lock(&ctx->io_mutex);
-    device_id = ctx->device_id;
-    pthread_mutex_unlock(&ctx->io_mutex);
-
-    if (protocol_build_control_packet(device_id, opcode, packet, sizeof(packet)) != 0) {
+    if (protocol_build_control_packet(PROTOCOL_DEFAULT_DEVICE_ID, opcode, packet, sizeof(packet)) != 0) {
         return -1;
     }
 
-    return serial_send_bytes(ctx, packet, sizeof(packet));
-}
-
-void serial_update_device_id(struct serial_context *ctx, uint8_t device_id)
-{
-    if (ctx == NULL) {
-        return;
-    }
-
-    pthread_mutex_lock(&ctx->io_mutex);
-    ctx->device_id = device_id;
-    pthread_mutex_unlock(&ctx->io_mutex);
+    return serial_send_command_packet(ctx, packet, sizeof(packet));
 }
 
 void *serial_thread(void *arg)
@@ -241,7 +234,6 @@ void *serial_thread(void *arg)
             continue;
         }
 
-        serial_update_device_id(serial, env.device_id);
         shared_state_store_env(shared, &env);
         printf("env updated: dev=0x%02x temp=%u hum=%u light=%u state=0x%08x\n",
                env.device_id, env.temperature, env.humidity, env.light, env.state);
