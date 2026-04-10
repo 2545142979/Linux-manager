@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>light.jpg</file>
+        <file>buzzer.jpg</file>
+        <file>fan.jpg</file>
+    </qresource>
+</RCC>

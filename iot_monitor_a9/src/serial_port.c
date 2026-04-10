@@ -12,6 +12,21 @@
 #define CRTSCTS 0
 #endif
 
+static void serial_log_tx_packet(const char *source, const uint8_t *buf, size_t len)
+{
+    size_t i;
+
+    if (source == NULL || buf == NULL || len == 0) {
+        return;
+    }
+
+    printf("serial tx [%s] len=%zu:", source, len);
+    for (i = 0; i < len; ++i) {
+        printf(" %02X", buf[i]);
+    }
+    printf("\n");
+}
+
 static int serial_configure_fd(int fd, speed_t baud_rate)
 {
     struct termios options;
@@ -105,6 +120,7 @@ int serial_context_init(struct serial_context *ctx, const char *device_path, spe
     memset(ctx, 0, sizeof(*ctx));
     ctx->fd = -1;
     ctx->baud_rate = baud_rate;
+    ctx->device_id = PROTOCOL_DEFAULT_DEVICE_ID;
     strncpy(ctx->device_path, device_path, sizeof(ctx->device_path) - 1);
 
     if (pthread_mutex_init(&ctx->io_mutex, NULL) != 0) {
@@ -149,25 +165,59 @@ int serial_send_bytes(struct serial_context *ctx, const uint8_t *buf, size_t len
         }
         total += (size_t)ret;
     }
+
+    while (tcdrain(ctx->fd) != 0) {
+        if (errno == EINTR) {
+            continue;
+        }
+        pthread_mutex_unlock(&ctx->io_mutex);
+        return -1;
+    }
+
     pthread_mutex_unlock(&ctx->io_mutex);
 
     return 0;
+}
+
+int serial_send_command_packet(struct serial_context *ctx, const uint8_t *buf, size_t len)
+{
+    int ret;
+
+    if (buf == NULL || len < PROTOCOL_PACKET_SIZE) {
+        return -1;
+    }
+
+    ret = serial_send_bytes(ctx, buf, PROTOCOL_PACKET_SIZE);
+    if (ret == 0) {
+        serial_log_tx_packet("binary", buf, PROTOCOL_PACKET_SIZE);
+    } else {
+        fprintf(stderr, "serial tx failed [binary]\n");
+    }
+
+    return ret;
 }
 
 int serial_send_command_text(struct serial_context *ctx, const char *text)
 {
     uint8_t opcode;
     uint8_t packet[PROTOCOL_PACKET_SIZE];
+    int ret;
 
     if (protocol_opcode_from_text(text, &opcode) != 0) {
         return -1;
     }
 
-    if (protocol_build_control_packet(opcode, packet, sizeof(packet)) != 0) {
+    if (protocol_build_control_packet(PROTOCOL_DEFAULT_DEVICE_ID, opcode, packet, sizeof(packet)) != 0) {
         return -1;
     }
 
-    return serial_send_bytes(ctx, packet, sizeof(packet));
+    ret = serial_send_command_packet(ctx, packet, sizeof(packet));
+    if (ret == 0) {
+        printf("serial tx command text=%s opcode=0x%02X dev=0x%02X\n",
+               text, opcode, PROTOCOL_DEFAULT_DEVICE_ID);
+    }
+
+    return ret;
 }
 
 void *serial_thread(void *arg)
@@ -225,8 +275,8 @@ void *serial_thread(void *arg)
         }
 
         shared_state_store_env(shared, &env);
-        printf("env updated: temp=%u hum=%u light=%u state=0x%08x\n",
-               env.temperature, env.humidity, env.light, env.state);
+        printf("env updated: dev=0x%02x temp=%u hum=%u light=%u state=0x%08x\n",
+               env.device_id, env.temperature, env.humidity, env.light, env.state);
     }
 
     return NULL;
